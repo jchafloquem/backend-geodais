@@ -96,6 +96,51 @@ app.get('/', (req, res) => {
   res.send('Backend GeoDAIS funcionando 🚀');
 });
 
+// ENPOINT PARA OBTENER TODOS LOS REGISTROS PARA EL PANEL WEB
+app.get('/api/registros', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    // 1. Obtenemos todos los productores y convertimos su geometría a formato GeoJSON
+    const registrosQuery = `
+      SELECT *, ST_AsGeoJSON(geom) as geojson
+      FROM registros_productor
+      ORDER BY fecha_creacion DESC;
+    `;
+    const registrosResult = await client.query(registrosQuery);
+    const registros = registrosResult.rows;
+
+    // 2. Para cada registro, buscamos sus fotos asociadas
+    for (const registro of registros) {
+      const fotosQuery = `
+        SELECT id, tipo_foto, ruta_foto
+        FROM fotos_registro
+        WHERE internal_key = $1;
+      `;
+      const fotosResult = await client.query(fotosQuery, [registro.internal_key]);
+      
+      // 3. Creamos una URL de datos para que el navegador pueda mostrar la imagen Base64
+      registro.fotos = fotosResult.rows.map(foto => ({
+          ...foto,
+          url: `data:image/jpeg;base64,${foto.ruta_foto}`
+      }));
+
+      // 4. Parseamos el string GeoJSON a un objeto JSON válido
+      if (registro.geojson) {
+          registro.geojson = JSON.parse(registro.geojson);
+      }
+    }
+
+    res.status(200).json(registros);
+
+  } catch (error) {
+    console.error('Error al obtener registros:', error);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+
 app.listen(port, () => {
   console.log(`Servidor escuchando en el puerto ${port}`);
 });
