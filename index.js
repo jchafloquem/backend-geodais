@@ -2,7 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
-const serverless = require('serverless-http');
 
 const app = express();
 const port = process.env.PORT || 3000; // Puerto
@@ -19,7 +18,7 @@ const pool = new Pool({
 
 
 // --- ENDPOINT PRINCIPAL ---
-/* app.post('/geodaismovil/registros/single', async (req, res) => {
+app.post('/geodaismovil/registros/single', async (req, res) => {
   const client = await pool.connect();
   
   try {
@@ -111,17 +110,11 @@ const pool = new Pool({
   } finally {
     client.release();
   }
-}); */
+});
 
 // Endpoint de prueba
 app.get('/', (req, res) => {
-  res.status(200).json({
-    status: 'success',
-    message: 'Backend GeoMovilDAIS funcionando correctamente en Netlify 🚀',
-    environment: process.env.NODE_ENV || 'production',
-    database: 'PostgreSQL/PostGIS (Neon)',
-    timestamp: new Date().toISOString()
-  });
+  res.send('Backend GeoDAIS funcionando 🚀');
 });
 
 // ENPOINT PARA OBTENER TODOS LOS REGISTROS PARA EL PANEL WEB
@@ -170,11 +163,6 @@ app.get('/geodaismovil/api/registros', async (req, res) => {
   }
 });
 
-// Si no estamos en Netlify, ejecutamos el listen normal
-if (process.env.NODE_ENV !== 'production') {
-  app.listen(port, () => {
-    console.log(`Servidor escuchando en el puerto ${port}`);
-  });
-}
-
-module.exports.handler = serverless(app);
+app.listen(port, () => {
+  console.log(`Servidor escuchando en el puerto ${port}`);
+});
