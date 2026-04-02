@@ -114,7 +114,7 @@ app.post('/geodaismovil/registros/single', async (req, res) => {
 
 // Endpoint de prueba
 app.get('/', (req, res) => {
-  res.send('Backend GeoDAIS funcionando 🚀');
+  res.send('Backend GeoDAIS funcionando JCHM 🚀');
 });
 
 // ENPOINT PARA OBTENER TODOS LOS REGISTROS PARA EL PANEL WEB
