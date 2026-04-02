@@ -4,7 +4,7 @@ const { Pool } = require('pg');
 const cors = require('cors');
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3000; // Puerto
 
 // Middleware
 app.use(cors());
@@ -18,7 +18,7 @@ const pool = new Pool({
 
 
 // --- ENDPOINT PRINCIPAL ---
-app.post('/registros/single', async (req, res) => {
+/* app.post('/geodaismovil/registros/single', async (req, res) => {
   const client = await pool.connect();
   
   try {
@@ -32,12 +32,34 @@ app.post('/registros/single', async (req, res) => {
     // 3. Insertar Productor
     const insertProductorQuery = `
       INSERT INTO registros_productor (
-        internal_key, dni_productor, nombre_completo, nombres, apellido_paterno, apellido_materno,
-        fecha_nacimiento, sexo, celular_participante, actividad_agraria, tipo_cultivo,
-        superficie_midagri, regimen_tenencia, tipo_productor,
-        geom, centroide, area_ha, perimetro_m,
-        txt_departamento, txt_provincia, txt_distrito, ubigeo_distrito,
-        profesional_dni, profesional_nombres, profesional_apellidos, profesional_celular, profesional_email, device_uuid
+        internal_key, 
+        dni_productor, 
+        nombre_completo, 
+        nombres, 
+        apellido_paterno, 
+        apellido_materno,
+        fecha_nacimiento, 
+        sexo, 
+        celular_participante, 
+        actividad_agraria, 
+        tipo_cultivo,
+        superficie_midagri, 
+        regimen_tenencia, 
+        tipo_productor,
+        geom, 
+        centroide, 
+        area_ha, 
+        perimetro_m,
+        txt_departamento, 
+        txt_provincia, 
+        txt_distrito, 
+        ubigeo_distrito,
+        profesional_dni, 
+        profesional_nombres, 
+        profesional_apellidos, 
+        profesional_celular, 
+        profesional_email, 
+        device_uuid
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
         ST_GeomFromText($15, 4326), $16, $17, $18,
@@ -88,7 +110,7 @@ app.post('/registros/single', async (req, res) => {
   } finally {
     client.release();
   }
-});
+}); */
 
 // Endpoint de prueba
 app.get('/', (req, res) => {
@@ -96,38 +118,37 @@ app.get('/', (req, res) => {
 });
 
 // ENPOINT PARA OBTENER TODOS LOS REGISTROS PARA EL PANEL WEB
-app.get('/api/registros', async (req, res) => {
+// Agregamos el prefijo /geodaismovil para que coincida con el resto de la app
+app.get('/geodaismovil/api/registros', async (req, res) => {
   const client = await pool.connect();
   try {
-    // 1. Obtenemos todos los productores y convertimos su geometría a formato GeoJSON
+    // Optimizamos: Una sola consulta que trae el productor y todas sus fotos como un array JSON
     const registrosQuery = `
-      SELECT *, ST_AsGeoJSON(geom) as geojson
-      FROM registros_productor
-      ORDER BY fecha_creacion DESC;
+      SELECT 
+        r.*, 
+        ST_AsGeoJSON(r.geom) as geojson,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', f.id, 
+              'tipo_foto', f.tipo_foto, 
+              'url', 'data:image/jpeg;base64,' || f.ruta_foto
+            )
+          ) FILTER (WHERE f.id IS NOT NULL), '[]'
+        ) as fotos
+      FROM registros_productor r
+      LEFT JOIN fotos_registro f ON r.internal_key = f.internal_key
+      GROUP BY r.internal_key, r.id -- Agrupar por la llave primaria
+      ORDER BY r.fecha_creacion DESC;
     `;
+
     const registrosResult = await client.query(registrosQuery);
     const registros = registrosResult.rows;
 
-    // 2. Para cada registro, buscamos sus fotos asociadas
-    for (const registro of registros) {
-      const fotosQuery = `
-        SELECT id, tipo_foto, ruta_foto
-        FROM fotos_registro
-        WHERE internal_key = $1;
-      `;
-      const fotosResult = await client.query(fotosQuery, [registro.internal_key]);
-      
-      // 3. Creamos una URL de datos para que el navegador pueda mostrar la imagen Base64
-      registro.fotos = fotosResult.rows.map(foto => ({
-          ...foto,
-          url: `data:image/jpeg;base64,${foto.ruta_foto}`
-      }));
-
-      // 4. Parseamos el string GeoJSON a un objeto JSON válido
-      if (registro.geojson) {
-          registro.geojson = JSON.parse(registro.geojson);
-      }
-    }
+    // Parsear el GeoJSON de string a objeto para Leaflet
+    registros.forEach(reg => {
+      if (reg.geojson) reg.geojson = JSON.parse(reg.geojson);
+    });
 
     res.status(200).json(registros);
 
