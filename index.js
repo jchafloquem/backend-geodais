@@ -122,7 +122,8 @@ app.get('/', (req, res) => {
 app.get('/geodaismovil/api/registros', async (req, res) => {
   const client = await pool.connect();
   try {
-    // Optimizamos: Una sola consulta que trae el productor y todas sus fotos como un array JSON
+    // Corregido: Agrupamos solo por internal_key (que es la clave única en tu lógica)
+    // Esto resuelve el error 42703 ya que r.id no existe en registros_productor
     const registrosQuery = `
       SELECT 
         r.*, 
@@ -138,16 +139,18 @@ app.get('/geodaismovil/api/registros', async (req, res) => {
         ) as fotos
       FROM registros_productor r
       LEFT JOIN fotos_registro f ON r.internal_key = f.internal_key
-      GROUP BY r.internal_key, r.id -- Agrupar por la llave primaria
+      GROUP BY r.internal_key -- Usamos internal_key porque es la clave única/primaria
       ORDER BY r.fecha_creacion DESC;
     `;
 
     const registrosResult = await client.query(registrosQuery);
     const registros = registrosResult.rows;
 
-    // Parsear el GeoJSON de string a objeto para Leaflet
+    // Parsear el GeoJSON de string a objeto para que Leaflet lo entienda
     registros.forEach(reg => {
-      if (reg.geojson) reg.geojson = JSON.parse(reg.geojson);
+      if (reg.geojson) {
+        reg.geojson = JSON.parse(reg.geojson);
+      }
     });
 
     res.status(200).json(registros);
